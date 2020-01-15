@@ -7,8 +7,8 @@
  *  When a consumer consumes one object, it takes one full_mutex
  *  and leave a empty_mutex for producer.	-- V(empty)
  *
- *  Author : Zhou YC
- *  Date   : 2018-03-18
+ *  Author : Wenbin Li
+ *  Date   : 2019-12-30
  */
 
 #include "pc_header.h"
