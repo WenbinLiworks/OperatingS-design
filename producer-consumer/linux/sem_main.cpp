@@ -3,8 +3,8 @@
  *	Initialize all semaphores and shared memory.
  *	Create 5 processes and wait for them finish.
  *
- *	Author : Zhou YC
- *	Date   : 2018-03-18
+ *	Author : Wenbin Li
+ *	Date   : 2019-12-30
  */
 
 #include "pc_header.h"
