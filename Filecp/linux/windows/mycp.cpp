@@ -4,8 +4,8 @@
 *	Copy source file or directory to destination.
 *	arguments and options: mycp <path> <path> [-options -count/ -show/ -time]
 *
-*	Author: ZhouYC
-*	Date  : 2018-3-25
+*	Author: Wenbin Li
+*	Date  : 2019-12-15
 */
 
 #include <stdio.h>
