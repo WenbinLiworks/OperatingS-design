@@ -57,3 +57,29 @@ drwxr-xr-x 2 beta beta 4096 Dec 19 02:53 subdir/
 ### Windows: createfile(), readfile(), writefile(), closehandle() and other functions
 
 ### Pay special attention to the consistency of permissions and time attributes after replication.
+
+# Producer-consumer Problem
+A buffer of size 3, initially empty
+
+• 2 producers
+
+– wait at random for a period of time to add data to the buffer,
+
+– if the buffer is full, wait for the consumer to retrieve the data before adding
+
+– repeat 6 times
+
+• 3 consumers
+
+– randomly wait for a period of time to read data from the buffer
+
+– if the buffer is empty, wait for the producer to add data before reading
+
+– repeat 4 times
+
+#### Explain:
+
+#### Display the time of each data addition and reading and the data in the buffer
+
+#### Process simulation for producers and consumers
+
