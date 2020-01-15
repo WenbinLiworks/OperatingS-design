@@ -4,8 +4,8 @@
  *  Include all header project needs.	*
  *  Define MARCOS and STRUCTS here.	*
  *					*
- *  Author : ZhouYC			*
- *  Date   : 2018-03-18			*
+ *  Author : Wenbin Li			*
+ *  Date   : 2019-12-30		*
  *					*/
 
 #ifndef _PC_HEADER_H_
