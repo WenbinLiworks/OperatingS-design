@@ -3,8 +3,8 @@
  *	Consumer consumes available objects in Field
  *	or wait when there is no available object.
  *
- *	Author : Zhou YC
- *	Date   : 2018-03-19
+ *	Author : Wenbin Li
+ *	Date   : 2019-12-20
  */
 
 #include "pc_header.h"
@@ -44,7 +44,7 @@ void initialize()
 void getNowTime()
 {
 	timespec time;
-	clock_gettime(CLOCK_REALTIME, &time);  //»ñÈ¡Ïà¶ÔÓÚ1970µ½ÏÖÔÚµÄÃëÊı
+	clock_gettime(CLOCK_REALTIME, &time);  //è·å–ç›¸å¯¹äº1970åˆ°ç°åœ¨çš„ç§’æ•°
 	tm nowTime;
 	localtime_r(&time.tv_sec, &nowTime);
 	char current[20];
