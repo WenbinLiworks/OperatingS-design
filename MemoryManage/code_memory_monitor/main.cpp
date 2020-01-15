@@ -8,8 +8,8 @@
  *
  *	Display result in table pattern.
  *
- *	Author : Zhou YC, 1120151868
- *	Date   : 2018-3-22
+ *	Author : Wenbin Li
+ *	Date   : 2019-12-15
  *
  */
 
