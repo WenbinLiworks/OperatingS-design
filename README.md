@@ -52,11 +52,11 @@ drwxr-xr-x 2 beta beta 4096 Dec 19 02:53 subdir/
 
 ### Explain:
 
-### Linux: create, read, write and other system calls. Soft links are required
+#### Linux: create, read, write and other system calls. Soft links are required
 
-### Windows: createfile(), readfile(), writefile(), closehandle() and other functions
+#### Windows: createfile(), readfile(), writefile(), closehandle() and other functions
 
-### Pay special attention to the consistency of permissions and time attributes after replication.
+#### Pay special attention to the consistency of permissions and time attributes after replication.
 
 # Producer-consumer Problem
 A buffer of size 3, initially empty
