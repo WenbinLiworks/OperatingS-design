@@ -85,7 +85,7 @@ A buffer of size 3, initially empty
 
 #### Process simulation for producers and consumers
 
-# Process ctrl
+# Process Control
 Design and implement UNIX "time" command. The "mytime" command accepts the program to be run through command line parameters, creates a separate process to run the program, and records the running time of the program.
 
 #### Under Windows:
