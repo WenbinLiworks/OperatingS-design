@@ -1,276 +1,214 @@
-/**
- *					Memory manager
- *	Design a monitor to watch RAM usage and computer configuration.
- *	And display the memory distribution of a process (pid).
- *  
- *  UI: command line, e.g:
- *  Manager> __
- *
- *	Display result in table pattern.
- *
- *	Author : Wenbin Li
- *	Date   : 2019-12-15
- *
- */
-
+// 内存监视.cpp : 定义控制台应用程序的入口点。
+/* TITLE：设计一个内存监视器，能实时地显示当前系统中内存的使用情况，包括系统地址空间
+         的布局，物理内存的使用情况；能实时显示某个进程的虚拟地址空间布局和工作集信息等。
+*/
+#include "stdafx.h"
+#include <cstdio>
+#include <cstdlib>
+#include <iostream> 
 #include <windows.h>
-#include <iostream>
-#include <iomanip>
-#include <string>
-#include <Tlhelp32.h>
-#include <stdio.h>
-#include <tchar.h>
-#include <shlwapi.h>
 #include <psapi.h>
-
-#pragma comment(lib, "shlwapi.lib")
-#pragma comment(lib,"kernel32.lib")
-
+#include <tlhelp32.h>
+#include <shlwapi.h>
+#include <iomanip>
+#pragma comment(lib,"Shlwapi.lib")
 using namespace std;
-
-// display protection status of a memory block.
-void printProtection(DWORD dwTarget)
+ 
+//显示保护标记，该标记表示允许应用程序对内存进行访问的类型
+inline bool TestSet(DWORD dwTarget, DWORD dwMask)
 {
-	char as[] = "----------";
-	if (dwTarget & PAGE_NOACCESS) as[0] = 'N';
-	if (dwTarget & PAGE_READONLY) as[1] = 'R';
-	if (dwTarget & PAGE_READWRITE)as[2] = 'W';
-	if (dwTarget & PAGE_WRITECOPY)as[3] = 'C';
-	if (dwTarget & PAGE_EXECUTE) as[4] = 'X';
-	if (dwTarget & PAGE_EXECUTE_READ) as[5] = 'r';
-	if (dwTarget & PAGE_EXECUTE_READWRITE) as[6] = 'w';
-	if (dwTarget & PAGE_EXECUTE_WRITECOPY) as[7] = 'c';
-	if (dwTarget & PAGE_GUARD) as[8] = 'G';
-	if (dwTarget & PAGE_NOCACHE) as[9] = 'D';
-	if (dwTarget & PAGE_WRITECOMBINE) as[10] = 'B';
-	printf("  %s  ", as);
+	return ((dwTarget &dwMask) == dwMask);
 }
-
-
-void displaySystemConfig()
-{
-	SYSTEM_INFO si;
-	memset(&si, 0, sizeof(si));
-	GetNativeSystemInfo(&si);
-
-	TCHAR str_page_size[MAX_PATH];
-	StrFormatByteSize(si.dwPageSize, str_page_size, MAX_PATH);
-
-	DWORD memory_size = (DWORD)si.lpMaximumApplicationAddress - (DWORD)si.lpMinimumApplicationAddress;
-	TCHAR str_memory_size[MAX_PATH];
-	StrFormatByteSize(memory_size, str_memory_size, MAX_PATH);
-	printf("GetNativeSystemInfo\n");
-	cout << "--------------------------------------------" << endl;
-	cout << "Process architect              | " << (si.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_AMD64 || si.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_AMD64 ? "x64" : "x86") << endl;
-	cout << "Process Core                   | " << si.dwNumberOfProcessors << endl;
-	cout << "Virtual memory page size       | " << str_page_size << endl;
-	cout << "Minimum application address    | 0x" << hex << setfill('0') << setw(8) << (DWORD)si.lpMinimumApplicationAddress << endl;
-	cout << "Maximum application address    | 0x" << hex << setw(8) << (DWORD)si.lpMaximumApplicationAddress << endl;
-	cout << "Total available virtual memory | " << str_memory_size << endl;
-	cout << "--------------------------------------------" << endl;
-	return;
-
+ 
+#define SHOWMASK(dwTarget,type) if(TestSet(dwTarget,PAGE_##type)){cout << "," << #type;}
+ 
+void ShowProtection(DWORD dwTarget)
+{//定义的页面保护类型
+	SHOWMASK(dwTarget, READONLY);
+	SHOWMASK(dwTarget, GUARD);
+	SHOWMASK(dwTarget, NOCACHE);
+	SHOWMASK(dwTarget, READWRITE);
+	SHOWMASK(dwTarget, WRITECOPY);
+	SHOWMASK(dwTarget, EXECUTE);
+	SHOWMASK(dwTarget, EXECUTE_READ);
+	SHOWMASK(dwTarget, EXECUTE_READWRITE);
+	SHOWMASK(dwTarget, EXECUTE_WRITECOPY);
+	SHOWMASK(dwTarget, NOACCESS);
 }
-
-// display computer memory condition
-void displayMemoryCondition()
+ 
+//遍历整个虚拟内存，并显示各内存区属性的工作程序的方法
+void WalkVM(HANDLE hProcess)
 {
-
-	printf("GlobalMemoryStatusEx\n");
-
-	MEMORYSTATUSEX stat;
-	stat.dwLength = sizeof(stat);
-	GlobalMemoryStatusEx(&stat);
-
-	long int DIV = 1024 * 1024;
-	cout << "Memory Load               | " << setbase(10) << stat.dwMemoryLoad << "%\n"
-		<< "Total physical memory     | " << setbase(10) << stat.ullTotalPhys / DIV << "MB\n"
-		<< "Available physical memory | " << setbase(10) << stat.ullAvailPhys / DIV << "MB\n"
-		<< "Total page file           | " << stat.ullTotalPageFile / DIV << "MB\n"
-		<< "Avaliable page file       | " << stat.ullAvailPageFile / DIV << "MB\n"
-		<< "Total virtual memory      | " << stat.ullTotalVirtual / DIV << "MB\n"
-		<< "Avaliable virtual memory  | " << stat.ullAvailVirtual / DIV << "MB" << endl;
-
-}
-
-// display a list of processes, with process filename and pid.
-void getAllProcessInformation()
-{
-	printf("CreateToolhelp32Snapshot\n");
-
-	PROCESSENTRY32 pe32;
-	pe32.dwSize = sizeof(pe32);
-	HANDLE hProcessShot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-	if (hProcessShot == INVALID_HANDLE_VALUE)
-	{
-		printf("CreateToolhelp32Snapshot error.\n");
-		return;
-	}
-
-	cout << " |  num  |  pid  |  ProcessName" << endl;
-	cout << "-----------------------------------------" << endl;
-	if (Process32First(hProcessShot, &pe32)) {
-		for (int i = 0;Process32Next(hProcessShot, &pe32);i++) {	
-			wprintf(L" | %4d  | %5d  |  %s\n", i, pe32.th32ProcessID, pe32.szExeFile);
-		}
-	}
-	cout << "-----------------------------------------" << endl;
-	CloseHandle(hProcessShot);
-	return;
-}
-
-void ShowHelp() 
-{
-	cout << "Type command: \n"\
-		"\"config\"   : Display system memory configuration.\n"\
-		"\"condition\": Display system memory usage condition.\n"\
-		"\"process\"  : Display all running processes information (with pid).\n"\
-		"\"pid\"      : Type a pid number and display detail of process with pid\n"\
-		"\"help\"     : Display this help text.\n"\
-		"\"exit\"     : Exit\n"\
-		<< endl;
-	return;
-}
-
-// display memory distribution of a process with pid.
-void getProcessDetail(int pid)
-{
-	HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, 0, pid);
-	if (!hProcess) return;
-	cout << " | "
-		<< "   Memory Addr    | "
-		<< "   Size    | "
-		<< "PageStatus| "
-		<< "    Protect    | "
-		<< "  Type  | "
-		<< " ModuleName"
-		<< endl;
-	SYSTEM_INFO si;					// system info
-	ZeroMemory(&si, sizeof(si));
-	GetSystemInfo(&si);
-
-	MEMORY_BASIC_INFORMATION mbi;		// save info here
-	ZeroMemory(&mbi, sizeof(mbi));    
-
+	SYSTEM_INFO si;	//系统信息结构
+	ZeroMemory(&si, sizeof(si));	//初始化
+	GetSystemInfo(&si);	//获得系统信息
+ 
+	MEMORY_BASIC_INFORMATION mbi;	//进程虚拟内存空间的基本信息结构
+	ZeroMemory(&mbi, sizeof(mbi));	//分配缓冲区，用于保存信息
+ 
+	//循环整个应用程序地址空间
 	LPCVOID pBlock = (LPVOID)si.lpMinimumApplicationAddress;
-
-	//int totalSize = 0;
-
-	while (pBlock < si.lpMaximumApplicationAddress) {
-		if (VirtualQueryEx(hProcess, pBlock, &mbi, sizeof(mbi)) == sizeof(mbi))
+	while (pBlock < si.lpMaximumApplicationAddress)
+	{
+		//获得下一个虚拟内存块的信息
+		if (VirtualQueryEx(
+			hProcess,	//相关的进程
+			pBlock,		//开始位置
+			&mbi,		//缓冲区
+			sizeof(mbi)) == sizeof(mbi))	//长度的确认，如果失败返回0
 		{
-			cout << " | ";
-
-			// size of block 
+			//计算块的结尾及其长度
 			LPCVOID pEnd = (PBYTE)pBlock + mbi.RegionSize;
-			WCHAR str_size[MAX_PATH];
-			StrFormatByteSize(mbi.RegionSize, str_size, MAX_PATH);
-
-			// addr and size
+			TCHAR szSize[MAX_PATH];
+			//将数字转换成字符串
+			StrFormatByteSize(mbi.RegionSize, szSize, MAX_PATH);
+ 
+			//显示块地址和长度
 			cout.fill('0');
-			cout << hex << setw(8) << (DWORD)pBlock
-				<< "-"
-				<< hex << setw(8) << (DWORD)pEnd - 1
-				<< " | ";
-			printf("%10d", mbi.RegionSize);
-
-			//totalSize += mbi.RegionSize;
-
-			// display memory block status
+			cout << hex << setw(8) << (DWORD)pBlock << "-" << hex << setw(8) << (DWORD)pEnd << (strlen(szSize) == 7 ? "(" : "(") << szSize << ")";
+ 
+			//显示块的状态
 			switch (mbi.State)
 			{
-
-			case MEM_COMMIT:cout << " | " << setw(9) << "Committed" << " | "; break;
-			case MEM_FREE:cout << " | " << setw(9) << "   Free  " << " | "; break;
-			case MEM_RESERVE:cout << " | " << setw(9) << " Reserved" << " | "; break;
-			default: cout << "          | ";break;
+			case MEM_COMMIT:
+				printf("已提交");
+				break;
+			case MEM_FREE:
+				printf("空闲");
+				break;
+			case MEM_RESERVE:
+				printf("已预留");
+				break;
 			}
-
-			// protect status
+ 
+			//显示保护
 			if (mbi.Protect == 0 && mbi.State != MEM_FREE)
 			{
-
 				mbi.Protect = PAGE_READONLY;
-
 			}
-			printProtection(mbi.Protect);
-
-			// type (free?)
+			ShowProtection(mbi.Protect);
+ 
+			//显示类型
 			switch (mbi.Type)
 			{
-
-			case MEM_IMAGE:cout << " |  Image  | "; break;
-			case MEM_PRIVATE:cout << " | Private | "; break;
-			case MEM_MAPPED:cout << " |  Mapped | "; break;
-			default:cout << " |         | ";break;
+			case MEM_IMAGE:
+				printf(", Image");
+				break;
+			case MEM_MAPPED:
+				printf(", Mapped");
+				break;
+			case MEM_PRIVATE:
+				printf(", Private");
+				break;
 			}
-
-			// module
-			TCHAR str_module_name[MAX_PATH];
-			if ( GetModuleFileName( (HMODULE)pBlock, str_module_name, MAX_PATH ) > 0 ) {
-				PathStripPath(str_module_name);
-				wprintf(L"%s", str_module_name);
+ 
+			//检验可执行的映像
+			TCHAR szFilename[MAX_PATH];
+			if (GetModuleFileName(
+				(HMODULE)pBlock,			//实际虚拟内存的模块句柄
+				szFilename,					//完全指定的文件名称
+				MAX_PATH) > 0)				//实际使用的缓冲区长度
+			{
+				//除去路径并显示
+				PathStripPath(szFilename);
+				printf(", Module:%s", szFilename);
 			}
-			cout << endl;
-			pBlock = pEnd;	// proceed next memory block
+ 
+			printf("\n");
+			//移动块指针以获得下一个块
+			pBlock = pEnd;
 		}
-
 	}
-	//printf("Total memory size: %d\n", totalSize);
 }
-
-int main()
+ 
+ 
+int main(int argc, char* argv[])
 {
-	setlocale(LC_ALL, "CHS");
-	//int flag = 9;
-	cout << endl << "*        System Memory Manager      *" << endl << endl;
-	cout << "	--Type 'help' for help.\n" << endl;
-	string cmd;
-	char cmd_charstr[127];
-	while (1)
+	MEMORYSTATUSEX statex;	//
+	statex.dwLength = sizeof(statex);
+	//获取系统内存信息
+	GlobalMemoryStatusEx(&statex);
+	printf("-----------------------内存信息-----------------------\n");
+	//内存使用率
+	printf("物理内存的使用率为:%ld%%\n", statex.dwMemoryLoad);
+	//物理内存
+	printf("物理内存的总容量为: %.2fGB.\n", (float)statex.ullTotalPhys / 1024 / 1024 / 1024);
+	//可用物理内存
+	printf("可用的物理内存为: %.2fGB.\n", (float)statex.ullAvailPhys / 1024 / 1024 / 1024);
+	//提交的内存限制
+	printf("总的交换文件为:%.2fGB.\n", (float)statex.ullTotalPageFile / 1024 / 1024 / 1024);
+	//当前进程可以提交的最大内存量
+	printf("可用的交换文件为：%.2fGB.\n", (float)statex.ullAvailPageFile / 1024 / 1024 / 1024);
+	//虚拟内存
+	printf("虚拟内存的总容量为：%.2fGB.\n", (float)statex.ullTotalVirtual/1024 / 1024 / 1024);
+	//可用虚拟内存
+	printf("可用的虚拟内存为：%.2fGB.\n", (float)statex.ullAvailVirtual/1024 / 1024 / 1024);
+	//保留字段
+	printf("保留字段的容量为：%.2fByte.\n",statex.ullAvailExtendedVirtual);
+	printf("------------------------------------------------------\n");
+ 
+	SYSTEM_INFO si;	//系统信息结构
+	ZeroMemory(&si, sizeof(si));
+	GetSystemInfo(&si);	//获得系统信息
+	printf("---------------------系统信息-------------------------\n");
+	printf("内存页的大小为：%dKB.\n", (int)si.dwPageSize/1024);
+	cout << "每个进程可用地址空间的最小内存地址为: 0x" << si.lpMinimumApplicationAddress << endl;
+	cout << "每个进程可用的私有地址空间的最大内存地址为: 0x" << si.lpMaximumApplicationAddress << endl;
+	cout << "能够保留地址空间区域的最小单位为: " << si.dwAllocationGranularity/1024 << "KB" << endl;
+	printf("------------------------------------------------------\n");
+ 
+	//获取系统的存储器使用情况
+	PERFORMANCE_INFORMATION pi;
+	pi.cb = sizeof(pi);
+	GetPerformanceInfo(&pi, sizeof(pi));
+	printf("----------------系统的存储器使用情况------------------\n");
+	cout << "结构体的大小为: " << pi.cb << "B" << endl;
+	cout << "系统当前提交的页面总数: " << pi.CommitTotal << endl;
+	cout << "系统当前可提交的最大页面总数: " << pi.CommitLimit << endl;
+	cout << "系统历史提交页面峰值: " << pi.CommitPeak << endl;
+	cout << "按页分配的总物理内存: " << pi.PhysicalTotal << endl;
+	cout << "当前可用的物理内存为: " << pi.PhysicalAvailable << endl;
+	cout << "系统Cache的容量为: " << pi.SystemCache << endl;
+	cout << "内存总量(按页)为: " << pi.KernelTotal << endl;
+	cout << "分页池的大小为: " << pi.KernelPaged << endl;
+	cout << "非分页池的大小为: " << pi.KernelNonpaged << endl;
+	cout << "页的大小为: " << pi.PageSize << endl;
+	cout << "打开的句柄个数为: " << pi.HandleCount << endl;
+	cout << "进程个数为: " << pi.ProcessCount << endl;
+	cout << "线程个数为: " << pi.ThreadCount << endl;
+	printf("------------------------------------------------------\n");
+ 
+	//获得每个进程的信息
+	printf("------------------各个进程的信息----------------------\n");
+	PROCESSENTRY32 pe;
+	pe.dwSize = sizeof(pe);
+	HANDLE hProcessSnap = ::CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+	BOOL bMore = ::Process32First(hProcessSnap, &pe);
+	while (bMore)
 	{
-		cout << "Manager> ";
-		cin.getline(cmd_charstr, 127);
-		cmd = cmd_charstr;
-			
-		if (cmd == "config") {
-			cout << endl;
-			displaySystemConfig();
+		HANDLE hP = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pe.th32ProcessID);
+		PROCESS_MEMORY_COUNTERS pmc;
+		ZeroMemory(&pmc, sizeof(pmc));
+ 
+		if (GetProcessMemoryInfo(hP, &pmc, sizeof(pmc)) == TRUE)
+		{
+			cout << " 进程ID:";
+			wcout << pe.th32ProcessID << endl;
+			cout << " 进程名称:";
+			wcout << pe.szExeFile << endl;
+			cout << " 虚拟内存的大小为:" << (float)pmc.WorkingSetSize / 1024 << "KB" << endl;
 		}
-		else if (cmd == "condition") {
-			cout << endl;
-			displayMemoryCondition();
-		}
-		else if (cmd == "process") {
-			cout << endl;
-			getAllProcessInformation();
-		}
-		else if (cmd == "pid") {
-			cout << "PID> ";
-			int pid = 0;
-			cin >> pid;
-			cin.getline(cmd_charstr, 127);
-			if (pid <= 0) continue;
-			cout << endl;
-			getProcessDetail(pid);
-		}
-		else if (cmd == "help") {
-			cout << endl;
-			ShowHelp();
-		}
-		else if (cmd == "exit") {
-			break;
-		}
-		else {
-			if (cmd != "") cout << "Invalid command, maybe you can type \"help\"?." << endl;
-			//cout << "'" << cmd_charstr << "'" << endl;
-			fflush(stdin);
-			cin.clear();
-			continue;
-		}
-		cin.clear();
-
+		bMore = ::Process32Next(hProcessSnap, &pe);
 	}
-	return 0;
-
+	printf("----------------------------------------------------\n");
+ 
+	printf("-------进程虚拟地址空间布局和工作集信息查询---------\n");
+	printf("输入要查询的进程ID:");
+	int x;
+	cin >> x;
+	HANDLE hP = OpenProcess(PROCESS_ALL_ACCESS, FALSE, x);
+	WalkVM(hP);
+	getchar();
+	getchar();
+    return 0;
 }
